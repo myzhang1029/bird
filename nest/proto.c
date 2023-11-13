@@ -64,7 +64,7 @@ static inline int channel_is_active(struct channel *c)
 { return (c->channel_state == CS_START) || (c->channel_state == CS_UP); }
 
 static inline int channel_reloadable(struct channel *c)
-{ return c->proto->reload_routes && c->reloadable; }
+{return c->proto->reload_routes && c->reloadable; }
 
 static inline void
 channel_log_state_change(struct channel *c)

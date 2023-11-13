@@ -375,9 +375,8 @@ rpki_pdu_to_host_byte_order(struct pdu_header *pdu)
     aspa->provider_as_count = ntohl(aspa->provider_as_count);
     /* Count provider_as_num_count from length and compare */
     int provider_num_counted = (aspa->len - sizeof(struct pdu_aspa)) / (sizeof(u32));
-    log("aspa provider count - in protocol %i, counted %i", aspa->provider_as_count, provider_num_counted);
 
-    for (int i = 0; i < aspa->provider_as_count ; i++)
+    for (int i = 0; i < provider_num_counted ; i++)
     {
       aspa->provider_as_nums[i] = ntohl(aspa->provider_as_nums[i]);
     }
@@ -783,8 +782,8 @@ rpki_prefix_pdu_2_net_addr(const struct pdu_header *pdu, net_addr_union *n)
 static int
 rpki_handle_prefix_pdu(struct rpki_cache *cache, const struct pdu_header *pdu)
 {
+  log("prefix pdu");
   const struct rpki_config *cf = (void *) cache->p->p.cf;
-
   const enum pdu_type type = pdu->type;
   ASSERT(type == IPV4_PREFIX || type == IPV6_PREFIX);
 
@@ -851,6 +850,32 @@ rpki_handle_prefix_pdu(struct rpki_cache *cache, const struct pdu_header *pdu)
   return RPKI_SUCCESS;
 }
 
+static int
+rpki_handle_aspa_pdu(struct rpki_cache *cache, const struct pdu_header *pdu)
+{
+  struct pdu_aspa *aspa = (void *) pdu;
+  struct channel *channel = cache->p->aspa_channel;
+
+  if (!channel)
+  {
+    CACHE_TRACE(D_ROUTES, cache, "Skip %i, missing %s channel", aspa->customer_as_num, "aspa");
+    return RPKI_ERROR;
+  }
+  cache->last_rx_prefix = current_time();
+
+  u32 customer_as_num = aspa->customer_as_num;
+
+  /* We reuse pdu memory instead of memcopy all providers numbers to new adata struct.
+   * We can do that, because aspa pdu will not be used anymore and the data will be memcopied in next functions anyway.
+   */
+  struct adata *providers = SKIP_BACK(adata, data, &aspa->provider_as_nums);
+  providers->length = aspa->len - sizeof(struct pdu_aspa);
+
+  rpki_table_add_aspa(cache, channel, customer_as_num, providers);
+
+  return RPKI_SUCCESS;
+}
+
 static uint
 rpki_check_interval(struct rpki_cache *cache, const char *(check_fn)(uint), uint interval)
 {
@@ -903,6 +928,8 @@ rpki_handle_end_of_data_pdu(struct rpki_cache *cache, const struct pdu_end_of_da
       rt_refresh_end(cache->p->roa4_channel->table, cache->p->roa4_channel);
     if (cache->p->roa6_channel)
       rt_refresh_end(cache->p->roa6_channel->table, cache->p->roa6_channel);
+    if (cache->p->aspa_channel)
+      rt_refresh_end(cache->p->aspa_channel->table, cache->p->aspa_channel);
   }
 
   cache->last_update = current_time();
@@ -967,6 +994,10 @@ rpki_rx_packet(struct rpki_cache *cache, struct pdu_header *pdu)
     /* TODO: Implement Router Key PDU handling */
     break;
 
+  case ASPA:
+    rpki_handle_aspa_pdu(cache, (void *) pdu);
+    break;
+
   default:
     CACHE_TRACE(D_PACKETS, cache, "Received unsupported type (%u)", pdu->type);
   };
@@ -982,12 +1013,10 @@ rpki_rx_hook(struct birdsock *sk, uint size)
   byte *end = pkt_start + size;
 
   DBG("rx hook got %u bytes \n", size);
-  log("rx hook got %u bytes", size);
 
   while (end >= pkt_start + RPKI_PDU_HEADER_LEN)
   {
     struct pdu_header *pdu = (void *) pkt_start;
-    log("new pdu");
     u32 pdu_size = ntohl(pdu->len);
 
     if (pdu_size < RPKI_PDU_HEADER_LEN || pdu_size > RPKI_PDU_MAX_LEN)
