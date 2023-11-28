@@ -3014,9 +3014,9 @@ bgp_send(struct bgp_conn *conn, uint type, uint len)
   buf[18] = type;
 
   int success = sk_send(sk, len);
-
-  if (success && (type == PKT_UPDATE || type == PKT_KEEPALIVE))
+  if (success)
     bgp_start_timer(conn->send_hold_timer, conn->send_hold_time);
+
   return success;
 }
 
@@ -3177,16 +3177,16 @@ bgp_tx(sock *sk)
 {
   struct bgp_conn *conn = sk->data;
 
+  /* Pending message was passed to kernel */
+  bgp_start_timer(conn->send_hold_timer, conn->send_hold_time);
+
   DBG("BGP: TX hook\n");
   uint max = 1024;
   while (--max && (bgp_fire_tx(conn) > 0))
     ;
 
   if (!max && !ev_active(conn->tx_ev))
-  {
     ev_schedule(conn->tx_ev);
-    bgp_start_timer(conn->send_hold_timer, conn->send_hold_time);
-  }
 }
 
 
@@ -3221,6 +3221,7 @@ static struct {
   { 3, 10, "Invalid network field" },
   { 3, 11, "Malformed AS_PATH" },
   { 4, 0, "Hold timer expired" },
+  { 4, 1, "Send hold timer expired" }, /* Provisional [draft-ietf-idr-bgp-sendholdtimer] */
   { 5, 0, "Finite state machine error" }, /* Subcodes are according to [RFC6608] */
   { 5, 1, "Unexpected message in OpenSent state" },
   { 5, 2, "Unexpected message in OpenConfirm state" },

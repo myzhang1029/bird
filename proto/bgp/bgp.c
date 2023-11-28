@@ -692,15 +692,19 @@ bgp_conn_enter_established_state(struct bgp_conn *conn)
     p->channel_map[c->index] = c;
   }
 
+  /* Breaking rx_hook for simulating receive problem */
+  if (p->cf->disable_rx)
+  {
+    conn->sk->rx_hook = NULL;
+    tm_stop(conn->hold_timer);
+  }
+
   /* proto_notify_state() will likely call bgp_feed_begin(), setting c->feed_state */
 
   bgp_conn_set_state(conn, BS_ESTABLISHED);
   proto_notify_state(&p->p, PS_UP);
   bmp_peer_up(p, conn->local_open_msg, conn->local_open_length,
 	      conn->remote_open_msg, conn->remote_open_length);
-
-  if (p->cf->disable_rx)
-    conn->sk->rx_hook = NULL;	/* broking hook for simulating reading problem */
 }
 
 static void
@@ -1027,8 +1031,6 @@ bgp_hold_timeout(timer *t)
 {
   struct bgp_conn *conn = t->data;
   struct bgp_proto *p = conn->bgp;
-  if (p->cf->disable_rx)
-    return;
 
   DBG("BGP: Hold timeout\n");
 
@@ -1069,11 +1071,24 @@ bgp_keepalive_timeout(timer *t)
 }
 
 void
-bgp_send_hold_timeout(timer *t){
+bgp_send_hold_timeout(timer *t)
+{
   struct bgp_conn *conn = t->data;
-  log(L_ERR "Send Hold Timer Expired");
-  bgp_start_timer(conn->connect_timer, 0);
-  bgp_conn_enter_idle_state(conn); /*contains  bgp_close_conn which hopefully release all bgp resources*/
+  struct bgp_proto *p = conn->bgp;
+
+  if (conn->state == BS_CLOSE)
+    return;
+
+  /* Error codes not yet assigned by IANA */
+  uint code = 4;
+  uint subcode = 1;
+
+  /* Like bgp_error() but without NOTIFICATION */
+  bgp_log_error(p, BE_BGP_TX, "Error", code, subcode, NULL, 0);
+  bgp_store_error(p, conn, BE_BGP_TX, (code << 16) | subcode);
+  bgp_conn_enter_idle_state(conn);
+  bgp_update_startup_delay(p);
+  bgp_stop(p, 0, NULL, 0);
 }
 
 static void

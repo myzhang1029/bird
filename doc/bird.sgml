@@ -3125,6 +3125,23 @@ using the following configuration parameters:
 	negotiation. If the proposed hold time would lead to a lower value of
 	the keepalive time, the session is rejected with error. Default: none.
 
+	<tag><label id="bgp-send-hold-time">send hold time <m/number/</tag>
+	Maximum time in seconds betweeen successfull transmissions of BGP messages.
+	Send hold timer drops the session if the neighbor is sending keepalives,
+	but does not receive our messages, causing the TCP connection to stall.
+	This may happen due to malfunctioning or overwhelmed neighbor. See
+	<HTMLURL URL="https://datatracker.ietf.org/doc/draft-ietf-idr-bgp-sendholdtimer/"
+	name="draft-ietf-idr-bgp-sendholdtimer"> for more details.
+
+	Like the option <cf/keepalive time/, the effective value depends on the
+	negotiated hold time, as it is scaled to maintain proportion between the
+	send hold time and the keepalive time. If it is set to zero, the timer
+	is disabled. Default: double of the hold timer limit.
+
+	The option <cf/disable rx/ is intended only for testing this feature and
+	should not be used anywhere else. It discards received messages and
+	disables the hold timer.
+
 	<tag><label id="bgp-connect-delay-time">connect delay time <m/number/</tag>
 	Delay in seconds between protocol startup and the first attempt to
 	connect. Default: 5 seconds.
@@ -3461,18 +3478,6 @@ be used in explicit configuration.
 	set <ref id="bgp-long-lived-stale-time" name="long lived stale time">
 	per AFI/SAFI pair instead of per protocol. Default: set by protocol-wide
 	option.
-	
-	<tag><label id="bgp-send-hold-timer">send hold time <m/number/</tag>
-	Send hold timer drops connection if the other side sends keepalives,
-	but does not listen. This may happen due to overhelming. More detailed info 
-	can be found on
-	<HTMLURL URL="https://datatracker.ietf.org/doc/html/draft-spaghetti-idr-bgp-sendholdtimer#name-restarting-the-sendholdtime" name="datatracker.ietf.org">.
-	Option <cf/send hold time/ sets the timelimit of the timer. If not set,
-	default value is computed as two times hold timer timelimit. If it is
-	set to zero, timer is disabled.
-
-	Option <cf/disable rx/ is intended only for testing this feature and should
-	not be used anywhere else. It discards rx_hook and causes ignoring hold timer.
 </descrip>
 
 <sect1>Attributes
