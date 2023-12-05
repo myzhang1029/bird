@@ -3014,7 +3014,7 @@ bgp_send(struct bgp_conn *conn, uint type, uint len)
   buf[18] = type;
 
   int success = sk_send(sk, len);
-  if (success)
+  if (success && ((conn->state == BS_ESTABLISHED) || (conn->state == BS_OPENCONFIRM)))
     bgp_start_timer(conn->send_hold_timer, conn->send_hold_time);
 
   return success;
@@ -3178,7 +3178,8 @@ bgp_tx(sock *sk)
   struct bgp_conn *conn = sk->data;
 
   /* Pending message was passed to kernel */
-  bgp_start_timer(conn->send_hold_timer, conn->send_hold_time);
+  if ((conn->state == BS_ESTABLISHED) || (conn->state == BS_OPENCONFIRM))
+    bgp_start_timer(conn->send_hold_timer, conn->send_hold_time);
 
   DBG("BGP: TX hook\n");
   uint max = 1024;

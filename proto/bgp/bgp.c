@@ -2636,7 +2636,9 @@ bgp_show_proto_info(struct proto *P)
 	    tm_remains(p->conn->hold_timer), p->conn->hold_time);
     cli_msg(-1006, "    Keepalive timer:  %t/%u",
 	    tm_remains(p->conn->keepalive_timer), p->conn->keepalive_time);
-  }
+    cli_msg(-1006, "    Send hold timer:  %t/%u",
+	    tm_remains(p->conn->send_hold_timer), p->conn->send_hold_time);
+}
 
 #if 0
   struct bgp_stats *s = &p->stats;
