@@ -1147,10 +1147,11 @@ bfd_copy_config(struct proto_config *dest, struct proto_config *src UNUSED)
 void bfd_show_details(struct bfd_session *s)
 {
   cli_msg(-1020, "  Role: %s", (s->passive) ? "Passive" : "Active");
-  cli_msg(-1020, "  States");
+  cli_msg(-1020, "  Session");
   cli_msg(-1020, "                 Local            Remote");
   cli_msg(-1020, "    State        %-12s     %-12s", bfd_state_names[s->loc_state], bfd_state_names[s->rem_state]);
-  cli_msg(-1020, "    Issue        %-12s     %-12s", bfd_state_names[s->loc_diag], bfd_state_names[s->rem_diag]);
+  if (s->loc_diag || s->rem_diag)
+    cli_msg(-1020, "    Issue        %-12s     %-12s", bfd_diag_names[s->loc_diag], bfd_diag_names[s->rem_diag]);
   cli_msg(-1020, "    Session ID   %-12u     %-12u", s->loc_id, s->rem_id);
   cli_msg(-1020, "  Session mode: %s", (s->rem_demand_mode) ? "Demand" : "Asynchronous");
   if (!s->rem_demand_mode)
