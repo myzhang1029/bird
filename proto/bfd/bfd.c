@@ -117,6 +117,7 @@ static list STATIC_LIST_INIT(bfd_proto_list);
 static list STATIC_LIST_INIT(bfd_wait_list);
 
 const char *bfd_state_names[] = { "AdminDown", "Down", "Init", "Up" };
+const char *bfd_diag_names[] = { "Nothing", "Timeout", "Echo failed", "Neighbor down", "Fwd reset", "Path down", "C path down", "Admin down", "RC path down" };
 
 static void bfd_session_set_min_tx(struct bfd_session *s, u32 val);
 static struct bfd_iface *bfd_get_iface(struct bfd_proto *p, ip_addr local, struct iface *iface);
@@ -1143,8 +1144,44 @@ bfd_copy_config(struct proto_config *dest, struct proto_config *src UNUSED)
   init_list(&d->neigh_list);
 }
 
+void bfd_show_details(struct bfd_session *s)
+{
+  cli_msg(-1020, "  Role: %s", (s->passive) ? "Passive" : "Active");
+  cli_msg(-1020, "  States");
+  cli_msg(-1020, "                 Local            Remote");
+  cli_msg(-1020, "    State        %-12s     %-12s", bfd_state_names[s->loc_state], bfd_state_names[s->rem_state]);
+  cli_msg(-1020, "    Issue        %-12s     %-12s", bfd_state_names[s->loc_diag], bfd_state_names[s->rem_diag]);
+  cli_msg(-1020, "    Session ID   %-12u     %-12u", s->loc_id, s->rem_id);
+  cli_msg(-1020, "  Session mode: %s", (s->rem_demand_mode) ? "Demand" : "Asynchronous");
+  if (!s->rem_demand_mode)
+  {
+    cli_msg(-1020, "  Intervals:");
+    cli_msg(-1020, "    Local:     desired min tx %t, required min rx %t", s->des_min_tx_int, s->req_min_rx_int);
+    cli_msg(-1020, "    Recieved: required min rx %t,  desired min tx %t", s->rem_min_rx_int, s->rem_min_tx_int);
+    cli_msg(-1020, "    Time multiplier: remote %i, for localy received bfd %i", s->detect_mult, s->rem_detect_mult);
+    cli_msg(-1020, "  Timers:");
+    cli_msg(-1020, "    Hold timer remains %t/%t", tm_remains(s->hold_timer), MAX(s->req_min_rx_int, s->rem_min_tx_int) * s->rem_detect_mult);  // The total time is just copied from timers setings. I hope it is not (and will not) be problem.
+    cli_msg(-1020, "    TX timer remains   %t", tm_remains(s->tx_timer));
+  }
+  else if (tm_remains(s->hold_timer) > 0)
+  {
+    cli_msg(-1020, "    Hold timer remains %t", tm_remains(s->hold_timer));
+  }
+  cli_msg(-1020, "  Latest actions:");
+  cli_msg(-1020, "    Last recieved valid control packet before %t", current_time() - s->last_rx);
+  cli_msg(-1020, "    Last sent periodic control packet before  %t", current_time() - s->last_tx);
+  btime tim = (btime)(((u64) s->tx_csn_time) << 20);
+  if (tim > 0)
+    cli_msg(-1020, "    Last csn change before                    %t", current_time() - tim);
+  if (s->poll_active || s->poll_scheduled)
+    cli_msg(-1020, "  Poll %s%s", (s->poll_active) ? ", poll active" : "", (s->poll_scheduled) ? ", poll scheduled" : "");
+  else
+    cli_msg(-1020, "  Poll unactive");
+  cli_msg(-1020, "");
+}
+
 void
-bfd_show_sessions(struct proto *P)
+bfd_show_sessions(struct proto *P, int details)
 {
   byte tbuf[TM_DATETIME_BUFFER_SIZE];
   struct bfd_proto *p = (struct bfd_proto *) P;
@@ -1177,6 +1214,10 @@ bfd_show_sessions(struct proto *P)
 
     cli_msg(-1020, "%-25I %-10s %-10s %-12s  %7t  %7t",
 	    s->addr, ifname, bfd_state_names[state], tbuf, tx_int, timeout);
+    if (details)
+    {
+      bfd_show_details(s);
+    }
   }
   HASH_WALK_END;
 }
