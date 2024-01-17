@@ -1146,20 +1146,30 @@ bfd_copy_config(struct proto_config *dest, struct proto_config *src UNUSED)
 
 void bfd_show_details(struct bfd_session *s)
 {
+  cli_msg(-1020, "  IP address: %I", s->addr);
+  cli_msg(-1020, "  Interface: %s", (s->ifa && s->ifa->iface) ? s->ifa->iface->name : "---");
   cli_msg(-1020, "  Role: %s", (s->passive) ? "Passive" : "Active");
-  cli_msg(-1020, "  Session");
-  cli_msg(-1020, "                 Local            Remote");
-  cli_msg(-1020, "    State        %-12s     %-12s", bfd_state_names[s->loc_state], bfd_state_names[s->rem_state]);
+  cli_msg(-1020, "  Local session:");
+  cli_msg(-1020, "    State:  %s", bfd_state_names[s->loc_state]);
+  cli_msg(-1020, "    Session ID: %u", s->loc_id);
   if (s->loc_diag || s->rem_diag)
-    cli_msg(-1020, "    Issue        %-12s     %-12s", bfd_diag_names[s->loc_diag], bfd_diag_names[s->rem_diag]);
-  cli_msg(-1020, "    Session ID   %-12u     %-12u", s->loc_id, s->rem_id);
+    cli_msg(-1020, "    Issue: %s", bfd_diag_names[s->loc_diag]);
+
+  cli_msg(-1020, "  Remote session:");
+  cli_msg(-1020, "    State:  %s", bfd_state_names[s->rem_state]);
+  cli_msg(-1020, "    Session ID: %u", s->loc_id, s->rem_id);
+  if (s->loc_diag || s->rem_diag)
+    cli_msg(-1020, "    Issue: %s", bfd_diag_names[s->rem_diag]);
+
   cli_msg(-1020, "  Session mode:  %s", (s->rem_demand_mode) ? "Demand" : "Asynchronous");
   if (!s->rem_demand_mode)
   {
-    cli_msg(-1020, "  Intervals:");
-    cli_msg(-1020, "    Local:    desired min tx  %t, required min rx %t", s->des_min_tx_int, s->req_min_rx_int);
-    cli_msg(-1020, "    Received: required min rx %t, desired min tx  %t", s->rem_min_rx_int, s->rem_min_tx_int);
-    cli_msg(-1020, "    Time multiplier: remote %i, for localy received bfd %i", s->detect_mult, s->rem_detect_mult);
+    cli_msg(-1020, "  Local intervals:");
+    cli_msg(-1020, "    Desired min tx:  %t", s->des_min_tx_int);
+    cli_msg(-1020, "    Required min rx: %t", s->req_min_rx_int);
+    cli_msg(-1020, "  Remote intervals:");
+    cli_msg(-1020, "    Desired min tx:  %t", s->rem_min_tx_int);
+    cli_msg(-1020, "    Required min rx: %t", s->rem_min_rx_int);
     cli_msg(-1020, "  Timers:");
     cli_msg(-1020, "    Hold timer remains %t/%t", tm_remains(s->hold_timer), MAX(s->req_min_rx_int, s->rem_min_tx_int) * s->rem_detect_mult);  // The total time is just copied from timers setings. I hope it is not (and will not) be problem.
     cli_msg(-1020, "    TX timer remains   %t", tm_remains(s->tx_timer));
@@ -1197,25 +1207,29 @@ bfd_show_sessions(struct proto *P, int details)
   }
 
   cli_msg(-1020, "%s:", p->p.name);
-  cli_msg(-1020, "%-25s %-10s %-10s %-12s  %8s %8s",
+  if (!details)
+    cli_msg(-1020, "%-25s %-10s %-10s %-12s  %8s %8s",
 	  "IP address", "Interface", "State", "Since", "Interval", "Timeout");
 
 
   HASH_WALK(p->session_hash_id, next_id, s)
   {
     /* FIXME: this is thread-unsafe, but perhaps harmless */
-    state = s->loc_state;
-    diag = s->loc_diag;
-    ifname = (s->ifa && s->ifa->iface) ? s->ifa->iface->name : "---";
-    tx_int = s->last_tx ? MAX(s->des_min_tx_int, s->rem_min_rx_int) : 0;
-    timeout = (btime) MAX(s->req_min_rx_int, s->rem_min_tx_int) * s->rem_detect_mult;
+    if (!details)
+    {
+      state = s->loc_state;
+      diag = s->loc_diag;
+      ifname = (s->ifa && s->ifa->iface) ? s->ifa->iface->name : "---";
+      tx_int = s->last_tx ? MAX(s->des_min_tx_int, s->rem_min_rx_int) : 0;
+      timeout = (btime) MAX(s->req_min_rx_int, s->rem_min_tx_int) * s->rem_detect_mult;
 
-    state = (state < 4) ? state : 0;
-    tm_format_time(tbuf, &config->tf_proto, s->last_state_change);
+      state = (state < 4) ? state : 0;
+      tm_format_time(tbuf, &config->tf_proto, s->last_state_change);
 
-    cli_msg(-1020, "%-25I %-10s %-10s %-12s  %7t  %7t",
+      cli_msg(-1020, "%-25I %-10s %-10s %-12s  %7t  %7t",
 	    s->addr, ifname, bfd_state_names[state], tbuf, tx_int, timeout);
-    if (details)
+     }
+    else
     {
       bfd_show_details(s);
     }
