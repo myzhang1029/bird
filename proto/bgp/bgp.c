@@ -628,11 +628,6 @@ bgp_stop(struct bgp_proto *p, int subcode, byte *data, uint len)
   bgp_graceful_close_conn(&p->outgoing_conn, subcode, data, len);
   bgp_graceful_close_conn(&p->incoming_conn, subcode, data, len);
 
-  struct bgp_channel *c;
-  BGP_WALK_CHANNELS(p, c)
-    if (c->ptx)
-      bgp_free_pending_tx(c);
-
   proto_send_event(&p->p, p->event);
 }
 
@@ -901,8 +896,8 @@ bgp_handle_graceful_restart(struct bgp_proto *p)
     }
 
     /* Reset bucket and prefix tables */
-    bgp_free_pending_tx(c);
-    bgp_init_pending_tx(c);
+    bgp_channel_stop_tx(c);
+    bgp_channel_init_tx(c);
     c->packets_to_send = 0;
   }
 
@@ -2025,7 +2020,7 @@ bgp_channel_start(struct channel *C)
   if (c->cf->export_table)
     bgp_setup_out_table(c);
 
-  bgp_init_pending_tx(c);
+  bgp_channel_init_tx(c);
 
   c->stale_timer = tm_new_init(c->pool, bgp_long_lived_stale_timeout, c, 0, 0);
 
@@ -2084,6 +2079,8 @@ static void
 bgp_channel_shutdown(struct channel *C)
 {
   struct bgp_channel *c = (void *) C;
+
+  bgp_channel_stop_tx(c);
 
   c->next_hop_addr = IPA_NONE;
   c->link_addr = IPA_NONE;
@@ -2922,14 +2919,13 @@ bgp_show_proto_info(struct proto *P)
       uint prefix_cnt = 0;
       struct bgp_bucket *buck;
       struct bgp_prefix *px;
-      if (c->ptx)
-	WALK_LIST(buck, c->ptx->bucket_queue)
-	{
-	  bucket_cnt++;
-	  WALK_LIST(px, buck->prefixes)
-	    if (px->cur)
-	      prefix_cnt++;
-	}
+      WALK_LIST(buck, c->bucket_queue)
+      {
+	bucket_cnt++;
+	WALK_LIST(px, buck->prefixes)
+	  if (px->cur)
+	    prefix_cnt++;
+      }
 
       cli_msg(-1006, "    Pending %u attribute sets with total %u prefixes to send",
 	 bucket_cnt, prefix_cnt);
