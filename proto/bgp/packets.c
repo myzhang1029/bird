@@ -1611,10 +1611,12 @@ bgp_encode_nlri_ip4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 {
   byte *pos = buf;
 
-  while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX))
+  WALK_TLIST_DELSAFE(bgp_prefix, px, &buck->prefixes)
   {
-    struct bgp_prefix *px = HEAD(buck->prefixes);
-    struct net_addr_ip4 *net = (void *) px->net;
+    if (size < BGP_NLRI_MAX)
+      break;
+
+    struct net_addr_ip4 *net = NET_PTR_IP4(&px->netindex->addr[0]);
 
     /* Encode path ID */
     if (s->add_path)
@@ -1696,10 +1698,12 @@ bgp_encode_nlri_ip6(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 {
   byte *pos = buf;
 
-  while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX))
+  WALK_TLIST_DELSAFE(bgp_prefix, px, &buck->prefixes)
   {
-    struct bgp_prefix *px = HEAD(buck->prefixes);
-    struct net_addr_ip6 *net = (void *) px->net;
+    if (size < BGP_NLRI_MAX)
+      break;
+
+    struct net_addr_ip6 *net = NET_PTR_IP6(&px->netindex->addr[0]);
 
     /* Encode path ID */
     if (s->add_path)
@@ -1780,10 +1784,12 @@ bgp_encode_nlri_vpn4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *b
 {
   byte *pos = buf;
 
-  while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX))
+  WALK_TLIST_DELSAFE(bgp_prefix, px, &buck->prefixes)
   {
-    struct bgp_prefix *px = HEAD(buck->prefixes);
-    struct net_addr_vpn4 *net = (void *) px->net;
+    if (size < BGP_NLRI_MAX)
+      break;
+
+    struct net_addr_vpn4 *net = NET_PTR_VPN4(&px->netindex->addr[0]);
 
     /* Encode path ID */
     if (s->add_path)
@@ -1877,10 +1883,12 @@ bgp_encode_nlri_vpn6(struct bgp_write_state *s, struct bgp_bucket *buck, byte *b
 {
   byte *pos = buf;
 
-  while (!EMPTY_LIST(buck->prefixes) && (size >= BGP_NLRI_MAX))
+  WALK_TLIST_DELSAFE(bgp_prefix, px, &buck->prefixes)
   {
-    struct bgp_prefix *px = HEAD(buck->prefixes);
-    struct net_addr_vpn6 *net = (void *) px->net;
+    if (size < BGP_NLRI_MAX)
+      break;
+
+    struct net_addr_vpn6 *net = NET_PTR_VPN6(&px->netindex->addr[0]);
 
     /* Encode path ID */
     if (s->add_path)
@@ -1974,10 +1982,12 @@ bgp_encode_nlri_flow4(struct bgp_write_state *s, struct bgp_bucket *buck, byte *
 {
   byte *pos = buf;
 
-  while (!EMPTY_LIST(buck->prefixes) && (size >= 4))
+  WALK_TLIST_DELSAFE(bgp_prefix, px, &buck->prefixes)
   {
-    struct bgp_prefix *px = HEAD(buck->prefixes);
-    struct net_addr_flow4 *net = (void *) px->net;
+    if (size < 4)
+      break;
+
+    struct net_addr_flow4 *net = NET_PTR_FLOW4(&px->netindex->addr[0]);
     uint flen = net->length - sizeof(net_addr_flow4);
 
     /* Encode path ID */
@@ -2062,10 +2072,12 @@ bgp_encode_nlri_flow6(struct bgp_write_state *s, struct bgp_bucket *buck, byte *
 {
   byte *pos = buf;
 
-  while (!EMPTY_LIST(buck->prefixes) && (size >= 4))
+  WALK_TLIST_DELSAFE(bgp_prefix, px, &buck->prefixes)
   {
-    struct bgp_prefix *px = HEAD(buck->prefixes);
-    struct net_addr_flow6 *net = (void *) px->net;
+    if (size < 4)
+      break;
+
+    struct net_addr_flow6 *net = NET_PTR_FLOW6(&px->netindex->addr[0]);
     uint flen = net->length - sizeof(net_addr_flow6);
 
     /* Encode path ID */
@@ -2320,7 +2332,7 @@ bgp_create_ip_reach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 
   int lr, la;
 
-  la = bgp_encode_attrs(s, buck->eattrs, buf+4, buf + MAX_ATTRS_LENGTH);
+  la = bgp_encode_attrs(s, buck->attrs, buf+4, buf + MAX_ATTRS_LENGTH);
   if (la < 0)
   {
     /* Attribute list too long */
@@ -2369,7 +2381,7 @@ bgp_create_mp_reach(struct bgp_write_state *s, struct bgp_bucket *buck, byte *bu
 
   /* Encode attributes to temporary buffer */
   byte *abuf = alloca(MAX_ATTRS_LENGTH);
-  la = bgp_encode_attrs(s, buck->eattrs, abuf, abuf + MAX_ATTRS_LENGTH);
+  la = bgp_encode_attrs(s, buck->attrs, abuf, abuf + MAX_ATTRS_LENGTH);
   if (la < 0)
   {
     /* Attribute list too long */
@@ -2572,7 +2584,7 @@ again:
   };
 
   /* Try unreachable bucket */
-  if ((buck = c->withdraw_bucket) && !EMPTY_LIST(buck->prefixes))
+  if ((buck = c->withdraw_bucket) && !EMPTY_TLIST(bgp_prefix, &buck->prefixes))
   {
     res = (c->afi == BGP_AF_IPV4) && !c->ext_next_hop ?
       bgp_create_ip_unreach(&s, buck, buf, end):

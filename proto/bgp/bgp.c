@@ -1782,6 +1782,9 @@ bgp_start(struct proto *P)
   p->gr_ready = 0;
   p->gr_active_num = 0;
 
+  p->prefix_slab = sl_new(p->p.pool, sizeof(struct bgp_prefix));
+  p->bucket_slab = sl_new(p->p.pool, sizeof(struct bgp_bucket));
+
   /* Reset some stats */
   p->stats.rx_messages = p->stats.tx_messages = 0;
   p->stats.rx_updates = p->stats.tx_updates = 0;
@@ -2918,11 +2921,10 @@ bgp_show_proto_info(struct proto *P)
       uint bucket_cnt = 0;
       uint prefix_cnt = 0;
       struct bgp_bucket *buck;
-      struct bgp_prefix *px;
       WALK_LIST(buck, c->bucket_queue)
       {
 	bucket_cnt++;
-	WALK_LIST(px, buck->prefixes)
+	WALK_TLIST(bgp_prefix, px, &buck->prefixes)
 	  if (px->cur)
 	    prefix_cnt++;
       }

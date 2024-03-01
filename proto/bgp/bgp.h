@@ -16,7 +16,7 @@
 #include "nest/bird.h"
 #include "nest/route.h"
 #include "nest/bfd.h"
-//#include "lib/lists.h"
+#include "lib/tlists.h"
 #include "lib/hash.h"
 #include "lib/socket.h"
 
@@ -358,6 +358,7 @@ struct bgp_proto {
   struct bgp_conn *conn;		/* Connection we have established */
   struct bgp_conn outgoing_conn;	/* Outgoing connection we're working with */
   struct bgp_conn incoming_conn;	/* Incoming connection we have neither accepted nor rejected yet */
+
   struct object_lock *lock;		/* Lock for neighbor connection */
   struct neighbor *neigh;		/* Neighbor entry corresponding to remote ip, NULL if multihop */
   struct bgp_listen_request listen;	/* Shared listening socket */
@@ -367,6 +368,8 @@ struct bgp_proto {
   struct bgp_stats stats;		/* BGP statistics */
   btime last_established;		/* Last time of enter/leave of established state */
   btime last_rx_update;			/* Last time of RX update */
+  slab *prefix_slab;			/* Slab holding export prefix nodes */
+  slab *bucket_slab;			/* Slab holding export bucket nodes */
   ip_addr link_addr;			/* Link-local version of local_ip */
   event *event;				/* Event for respawning and shutting process */
   timer *startup_timer;			/* Timer used to delay protocol startup due to previous errors (startup_delay) */
@@ -428,25 +431,31 @@ struct bgp_channel {
 
 #define BGP_CHANNEL_PROTO(_c)	SKIP_BACK(struct bgp_proto, p, (_c)->c.proto)
 
+#define TLIST_PREFIX	bgp_prefix
+#define TLIST_TYPE	struct bgp_prefix
+#define TLIST_ITEM	bn
+#define TLIST_WANT_ADD_TAIL
+
 struct bgp_prefix {
-  node buck_node_xx;			/* Node in per-bucket list */
-  struct bgp_prefix *next;		/* Node in prefix hash table */
+  TLIST_DEFAULT_NODE;			/* Node in per-bucket list */
+  struct bgp_prefix *next_hash;		/* Node in net-pathid hash chain */
   struct bgp_bucket *last;		/* Last bucket sent with this prefix */
   struct bgp_bucket *cur;		/* Current bucket (cur == last) if no update is required */
   btime lastmod;			/* Last modification of this prefix */
   u32 hash;
   u32 path_id;
-  net_addr net[0];
+  struct netindex *netindex;		/* Net (allocated from the exporting table) */
 };
+
+#include "lib/tlists.h"
 
 struct bgp_bucket {
   node send_node;			/* Node in send queue */
   struct bgp_bucket *next;		/* Node in bucket hash table */
-  list prefixes;			/* Prefixes to send in this bucket (struct bgp_prefix) */
-  u32 hash;				/* Hash over extended attributes */
+  TLIST_LIST(bgp_prefix) prefixes;	/* Prefixes to send in this bucket (struct bgp_prefix) */
   u32 px_uc:31;				/* How many prefixes are linking this bucket */
   u32 bmp:1;				/* Temporary bucket for BMP encoding */
-  ea_list eattrs[0];			/* Per-bucket extended attributes */
+  ea_list *attrs;
 };
 
 struct bgp_export_state {
