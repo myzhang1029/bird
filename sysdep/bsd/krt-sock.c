@@ -635,6 +635,7 @@ krt_read_route(struct ks_msg *msg, struct krt_proto *p, int scan)
     krt_got_route_async(p, e, new, src);
 }
 
+#ifndef __APPLE__
 static void
 krt_read_ifannounce(struct ks_msg *msg)
 {
@@ -661,6 +662,7 @@ krt_read_ifannounce(struct ks_msg *msg)
 
   DBG("KRT: IFANNOUNCE what: %d index %d name %s\n", ifam->ifan_what, ifam->ifan_index, ifam->ifan_name);
 }
+#endif
 
 static void
 krt_read_ifinfo(struct ks_msg *msg, int scan)
@@ -725,7 +727,9 @@ krt_read_ifinfo(struct ks_msg *msg, int scan)
 
   if (fl & IFF_UP)
     f.flags |= IF_ADMIN_UP;
+#ifndef __APPLE__
   if (ifm->ifm_data.ifi_link_state != LINK_STATE_DOWN)
+#endif
     f.flags |= IF_LINK_UP;          /* up or unknown */
   if (fl & IFF_LOOPBACK)            /* Loopback */
     f.flags |= IF_MULTIACCESS | IF_LOOPBACK | IF_IGNORE;
@@ -873,9 +877,11 @@ krt_read_msg(struct proto *p, struct ks_msg *msg, int scan)
     case RTM_CHANGE:
       krt_read_route(msg, (struct krt_proto *)p, scan);
       break;
+#ifndef __APPLE__
     case RTM_IFANNOUNCE:
       krt_read_ifannounce(msg);
       break;
+#endif
     case RTM_IFINFO:
       krt_read_ifinfo(msg, scan);
       break;
