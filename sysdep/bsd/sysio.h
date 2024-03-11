@@ -32,7 +32,7 @@
 #endif
 
 
-#ifdef __NetBSD__
+#if defined(__NetBSD__) || defined(__APPLE__)
 
 #ifndef IP_RECVTTL
 #define IP_RECVTTL 23
@@ -47,6 +47,10 @@
 
 #ifdef __DragonFly__
 #define TCP_MD5SIG	TCP_SIGNATURE_ENABLE
+#endif
+
+#ifdef __APPLE__
+#define TCP_MD5SIG	TCPOPT_SIGNATURE
 #endif
 
 
