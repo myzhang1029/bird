@@ -16,7 +16,7 @@
 #include "sysdep/config.h"
 #include "nest/bird.h"
 
-#ifdef HAVE_GETRANDOM
+#if defined(HAVE_GETRANDOM) || (defined(__APPLE__) && defined(HAVE_GETENTROPY))
 #include <sys/random.h>
 #endif
 
