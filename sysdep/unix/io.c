@@ -12,6 +12,9 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#ifdef __APPLE__
+#define __APPLE_USE_RFC_3542
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
