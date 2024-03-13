@@ -1,0 +1,17 @@
+name: Build on macOS
+on: [push]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install a more recent version of bison
+      run: brew install bison autoconf automake
+    - name: Autotools generation
+      run: autoreconf -fi
+    - name: Configure
+      run: PATH="$(brew --prefix)/opt/bison/bin:$PATH" ./configure --with-sysconfig=bsd CFLAGS=-I"$(brew --prefix)/opt/readline/include" LDFLAGS=-L"$(brew --prefix)/opt/readline/lib"
+    - name: Build
+      run: PATH="$(brew --prefix)/opt/bison/bin:$PATH" make
+    - name: Run tests
+      run: make check
