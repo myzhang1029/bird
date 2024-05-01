@@ -1068,7 +1068,7 @@ bfd_start(struct proto *P)
 
   p->loop = birdloop_new();
   p->tpool = rp_new(NULL, "BFD thread root");
-  pthread_spin_init(&p->lock, PTHREAD_PROCESS_PRIVATE);
+  pthread_mutex_init(&p->lock, NULL);
 
   p->session_slab = sl_new(P->pool, sizeof(struct bfd_session));
   HASH_INIT(p->session_hash_id, P->pool, 8);
