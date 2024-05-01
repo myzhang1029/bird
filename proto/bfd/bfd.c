@@ -1122,7 +1122,7 @@ bfd_start(struct proto *P)
   struct bfd_proto *p = (struct bfd_proto *) P;
   struct bfd_config *cf = (struct bfd_config *) (P->cf);
 
-  pthread_spin_init(&p->lock, PTHREAD_PROCESS_PRIVATE);
+  pthread_mutex_init(&p->lock, NULL);
 
   p->tpool = birdloop_pool(P->loop);
 
