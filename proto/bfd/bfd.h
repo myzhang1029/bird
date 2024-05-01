@@ -93,7 +93,7 @@ struct bfd_proto
   struct proto p;
   struct birdloop *loop;
   pool *tpool;
-  pthread_spinlock_t lock;
+  pthread_mutex_t lock;
   node bfd_node;
 
   slab *session_slab;
@@ -225,8 +225,8 @@ extern const char *bfd_state_names[];
 extern const u8 bfd_auth_type_to_hash_alg[];
 
 
-static inline void bfd_lock_sessions(struct bfd_proto *p) { pthread_spin_lock(&p->lock); }
-static inline void bfd_unlock_sessions(struct bfd_proto *p) { pthread_spin_unlock(&p->lock); }
+static inline void bfd_lock_sessions(struct bfd_proto *p) { pthread_mutex_lock(&p->lock); }
+static inline void bfd_unlock_sessions(struct bfd_proto *p) { pthread_mutex_unlock(&p->lock); }
 
 /* bfd.c */
 struct bfd_session * bfd_find_session_by_id(struct bfd_proto *p, u32 id);
