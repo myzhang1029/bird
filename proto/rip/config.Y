@@ -38,7 +38,7 @@ CF_KEYWORDS(RIP, ECMP, LIMIT, WEIGHT, INFINITY, METRIC, UPDATE, TIMEOUT,
 	    PASSIVE, VERSION, SPLIT, HORIZON, POISON, REVERSE, CHECK, ZERO,
 	    TIME, BFD, AUTHENTICATION, NONE, PLAINTEXT, CRYPTOGRAPHIC, MD5,
 	    TTL, SECURITY, RX, TX, BUFFER, LENGTH, PRIORITY, ONLY, LINK,
-	    DEMAND, CIRCUIT, RIP_METRIC, RIP_TAG)
+	    DEMAND, CIRCUIT, RIP_METRIC, RIP_TAG, ONLINK, PACKET, NEXTHOP)
 
 %type <i> rip_variant rip_auth
 
@@ -105,6 +105,8 @@ rip_iface_start:
   RIP_IFACE->timeout_time = RIP_DEFAULT_TIMEOUT_TIME;
   RIP_IFACE->garbage_time = RIP_DEFAULT_GARBAGE_TIME;
   RIP_IFACE->rxmt_time = RIP_DEFAULT_RXMT_TIME;
+  RIP_IFACE->onlink = 0;
+  RIP_IFACE->packet_nexthop = 0;
 };
 
 rip_iface_finish:
@@ -166,6 +168,8 @@ rip_iface_item:
  | TTL SECURITY TX ONLY	{ RIP_IFACE->ttl_security = 2; }
  | CHECK LINK bool	{ RIP_IFACE->check_link = $3; }
  | BFD bool		{ RIP_IFACE->bfd = $2; cf_check_bfd($2); }
+ | ONLINK bool		{ RIP_IFACE->onlink = $2; }
+ | PACKET NEXTHOP bool		{ RIP_IFACE->packet_nexthop = $3; }
  | AUTHENTICATION rip_auth { RIP_IFACE->auth_type = $2; if ($2) rip_check_auth(); }
  | password_list	{ rip_check_auth(); }
 ;
