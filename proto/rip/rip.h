@@ -76,6 +76,8 @@ struct rip_iface_config
   u8 check_link;			/* Whether iface link change is used */
   u8 demand_circuit;			/* Use demand circuit extensions (RFC 2091) */
   u8 bfd;				/* Use BFD on iface */
+  u8 onlink;				/* Whether routes should be marked as onlink */
+  u8 packet_nexthop;				/* Whether to use nexthop in packets instead of source address */
   u16 rx_buffer;			/* RX buffer size, 0 for MTU */
   u16 tx_length;			/* TX packet length limit (including headers), 0 for MTU */
   int tx_tos;
