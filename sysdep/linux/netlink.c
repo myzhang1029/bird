@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #undef LOCAL_DEBUG
 
@@ -327,7 +328,7 @@ static struct tbf rl_netlink_err = TBF_DEFAULT_LOG_LIMITS;
 #endif
 
 static int
-nl_error(struct nlmsghdr *h, int ignore_esrch)
+nl_error(struct nlmsghdr *h, int ignore_esrch, const char *error_desc)
 {
   /*
    * NLMSG_ERROR structure:
@@ -363,7 +364,7 @@ nl_error(struct nlmsghdr *h, int ignore_esrch)
   if (h->nlmsg_flags & NLM_F_ACK_TLVS)
     msg = nl_get_ext_msg(NLMSG_RTA(h, body), NLMSG_PAYLOAD(h, body));
 
-  log_rl(&rl_netlink_err, L_WARN "Netlink: %s", msg ?: strerror(err));
+  log_rl(&rl_netlink_err, L_WARN "Netlink: %s in %s", msg ?: strerror(err), error_desc);
   return err;
 
 err:
@@ -380,14 +381,14 @@ nl_get_scan(void)
     return NULL;
   if (h->nlmsg_type == NLMSG_ERROR)
     {
-      nl_error(h, 0);
+      nl_error(h, 0, "nl_get_scan");
       return NULL;
     }
   return h;
 }
 
 static int
-nl_exchange(struct nlmsghdr *pkt, int ignore_esrch)
+nl_exchange(struct nlmsghdr *pkt, int ignore_esrch, const char *error_desc)
 {
   struct nlmsghdr *h;
 
@@ -396,10 +397,10 @@ nl_exchange(struct nlmsghdr *pkt, int ignore_esrch)
     {
       h = nl_get_reply(&nl_req);
       if (h->nlmsg_type == NLMSG_ERROR)
-	break;
+        break;
       log(L_WARN "nl_exchange: Unexpected reply received");
     }
-  return nl_error(h, ignore_esrch) ? -1 : 0;
+  return nl_error(h, ignore_esrch, error_desc) ? -1 : 0;
 }
 
 /*
@@ -1535,6 +1536,33 @@ nh_bufsize(struct nexthop *nh)
   return rv;
 }
 
+static void debug_rte(const struct rte *r, char *msgbuf, unsigned int bufsiz)
+{
+  if (!r || !r->net) {
+    log(L_WARN "debug_rte: NULL rte or net");
+    return;
+  }
+
+  char buf[INET6_ADDRSTRLEN];
+  const net_addr *n = r->net->n.addr;
+
+  const char *src_name = "unknown";
+  if (r->src && r->src->proto && r->src->proto->name)
+    src_name = r->src->proto->name;
+
+  if (n->type == NET_IP4 || n->type == NET_IP6) {
+    net_format(n, buf, INET6_ADDRSTRLEN);
+    snprintf(msgbuf, bufsiz, "RTE IPv%d: %s | id=%u | lastmod=%llu | src=%s",
+        4 + ((n->type == NET_IP6) << 1),
+        buf, r->id,
+        (unsigned long long) r->lastmod, src_name);
+  }
+  else {
+    snprintf(msgbuf, bufsiz, "RTE: Unknown address type %u | id=%u | src=%s",
+        n->type, r->id, src_name);
+  }
+}
+
 static int
 nl_send_route(struct krt_proto *p, rte *e, int op)
 {
@@ -1542,6 +1570,8 @@ nl_send_route(struct krt_proto *p, rte *e, int op)
   net *net = e->net;
   rta *a = e->attrs;
   ea_list *eattrs = a->eattrs;
+  char buf[128];
+  debug_rte(e, buf, 128);
   int bufsize = 128 + KRT_METRICS_MAX*8 + nh_bufsize(&(a->nh));
   u32 priority = 0;
 
@@ -1689,7 +1719,7 @@ nl_send_route(struct krt_proto *p, rte *e, int op)
 
 done:
   /* Ignore missing for DELETE */
-  return nl_exchange(&r->h, (op == NL_OP_DELETE));
+  return nl_exchange(&r->h, (op == NL_OP_DELETE), buf);
 }
 
 static inline int
@@ -2236,7 +2266,7 @@ nl_send_fdb(const net_addr *n0, rte *e, int op, int tunnel)
   }
 
   /* Ignore missing for DELETE */
-  return nl_exchange(&r->h, (op == NL_OP_DELETE));
+  return nl_exchange(&r->h, (op == NL_OP_DELETE), "");
 }
 
 void
@@ -2471,7 +2501,7 @@ nl_send_vlan(struct iface *i, uint vid, uint tid, uint flags, int op, int tunnel
   nl_close_attr(&r->h, afspec);
 
   /* Ignore missing for DELETE */
-  return nl_exchange(&r->h, (op == NL_OP_DELETE));
+  return nl_exchange(&r->h, (op == NL_OP_DELETE), "");
 }
 
 void
