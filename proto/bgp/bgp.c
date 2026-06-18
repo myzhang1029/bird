@@ -857,8 +857,10 @@ bgp_startup(struct bgp_proto *p)
   p->start_state = BSS_CONNECT;
 
   /* For dynamic BGP, start neighbor channel immediately */
-  if (bgp_is_dynamic(p) && p->nbr_channel && !p->nbr_channel->disabled)
+  if (bgp_is_dynamic(p) && p->nbr_channel && !p->nbr_channel->disabled) {
+    log(L_WARN "bgp_startup: calling channel_set_state(CS_UP) for dynamic BGP");
     channel_set_state(p->nbr_channel, CS_UP);
+  }
 
   if (!p->passive)
     bgp_active(p);
@@ -1288,6 +1290,7 @@ bgp_conn_enter_established_state(struct bgp_conn *conn)
     int active = loc->ready && rem->ready;
     c->c.disabled = !active;
     c->c.reloadable = p->route_refresh || c->cf->import_table;
+    log(L_WARN "%s: Channel disabled=%d", c->c.name, (int)c->c.disabled);
 
     c->index = active ? num++ : 0;
 
@@ -1344,6 +1347,7 @@ bgp_conn_enter_established_state(struct bgp_conn *conn)
       c->c.ra_mode = RA_OPTIMAL;
 
     ip_addr src = p->local_ip;
+    log(L_WARN "%s: c->nh=%I, c->cf->nh=%I", p->p.name, c->next_hop_addr, c->cf->next_hop_addr);
     c->next_hop_addr = c->cf->next_hop_addr;
     /* Try to use source address as next hop address */
     if (ipa_zero(c->next_hop_addr))
@@ -1378,6 +1382,7 @@ bgp_conn_enter_established_state(struct bgp_conn *conn)
       log(L_WARN "%s: Missing next hop address", p->p.name);
       c->c.disabled = 1;
     }
+    log(L_WARN "%s: Channel post disabled=%d", c->c.name, (int)c->c.disabled);
   }
 
   p->afi_map = mb_alloc(p->p.pool, num * sizeof(u32));
@@ -2715,6 +2720,7 @@ bgp_channel_start(struct channel *C)
   c->packets_to_send = 0;
 
   /* bgp_conn_enter_established_state would disable the channel unless next_hop_addr is nonzero */
+  log(L_WARN "bgp_channel_start: %s.%s (%d)", p->p.name, c->c.name, (int)c->c.disabled);
   ASSERT_DIE(!ipa_zero(c->next_hop_addr));
 
   /* Set link-local address for IPv6 single-hop BGP */

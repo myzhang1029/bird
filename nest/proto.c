@@ -216,8 +216,10 @@ proto_start_channels(struct proto *p)
 {
   struct channel *c;
   WALK_LIST(c, p->channels)
-    if (!c->disabled)
+    if (!c->disabled) {
+      log(L_WARN "proto_start_channels: calling channel_set_state(CS_UP) for %s.%s (%d)", p->name, c->name, (int)c->disabled);
       channel_set_state(c, CS_UP);
+    }
 }
 
 static void
@@ -600,6 +602,7 @@ channel_do_start(struct channel *c)
   channel_reset_limit(&c->in_limit);
   channel_reset_limit(&c->out_limit);
 
+  log(L_WARN "Calling channel.start hook for %s.%s", c->proto->name, c->name);
   CALL(c->channel->start, c);
 }
 
@@ -682,8 +685,10 @@ channel_set_state(struct channel *c, uint state)
   case CS_START:
     ASSERT(cs == CS_DOWN || cs == CS_UP);
 
-    if (cs == CS_DOWN)
+    if (cs == CS_DOWN) {
+      log(L_WARN "channel_set_state: CS_DOWN->CS_START");
       channel_do_start(c);
+    }
 
     if (es != ES_DOWN)
       channel_stop_export(c);
@@ -699,8 +704,10 @@ channel_set_state(struct channel *c, uint state)
   case CS_UP:
     ASSERT(cs == CS_DOWN || cs == CS_START);
 
-    if (cs == CS_DOWN)
+    if (cs == CS_DOWN) {
+      log(L_WARN "channel_set_state: CS_DOWN->CS_UP");
       channel_do_start(c);
+    }
 
     if (!c->gr_wait && !c->export_wait && c->proto->rt_notify)
       channel_start_export(c);
