@@ -1587,6 +1587,42 @@ bgp_conn_enter_established_state(struct bgp_conn *conn)
 	ts->channel_states[c->c.id] = ea_lookup_slow(state, 0, EALS_IN_TABLE);
       }
     }
+
+    ip_addr src = p->local_ip;
+    c->next_hop_addr = c->cf->next_hop_addr;
+    /* Try to use source address as next hop address */
+    if (ipa_zero(c->next_hop_addr))
+    {
+      if (bgp_channel_is_ipv4(c) && (ipa_is_ip4(src) || c->ext_next_hop))
+        c->next_hop_addr = src;
+
+      if (bgp_channel_is_ipv6(c) && (ipa_is_ip6(src) || c->ext_next_hop))
+        c->next_hop_addr = src;
+
+      if (bgp_channel_is_l2vpn(c))
+        c->next_hop_addr = src;
+    }
+
+    /* Use preferred addresses associated with interface / source address */
+    if (ipa_zero(c->next_hop_addr))
+    {
+      /* We know the iface for single-hop, we make lookup for multihop */
+      struct neighbor *nbr = p->neigh ?: neigh_find(&p->p, src, NULL, 0);
+      struct iface *iface = nbr ? nbr->iface : NULL;
+
+      if (bgp_channel_is_ipv4(c) && iface && iface->addr4)
+        c->next_hop_addr = iface->addr4->ip;
+
+      if (bgp_channel_is_ipv6(c) && iface && iface->addr6)
+        c->next_hop_addr = iface->addr6->ip;
+    }
+
+    /* Disable if no feasible next hop address is found */
+    if (ipa_zero(c->next_hop_addr))
+    {
+      log(L_WARN "%s: Missing next hop address", p->p.name);
+      c->c.disabled = 1;
+    }
   }
 
   p->afi_map = mb_alloc(p->p.pool, num * sizeof(u32));
@@ -3201,7 +3237,6 @@ bgp_channel_start(struct channel *C)
 {
   struct bgp_proto *p = (void *) C->proto;
   struct bgp_channel *c = (void *) C;
-  ip_addr src = p->local_ip;
 
   if (c->igp_table_ip4)
     rt_lock_table(c->igp_table_ip4);
@@ -3222,43 +3257,11 @@ bgp_channel_start(struct channel *C)
 
   c->stale_timer = tm_new_init(c->pool, bgp_long_lived_stale_timeout, c, 0, 0);
 
-  c->next_hop_addr = c->cf->next_hop_addr;
   c->link_addr = IPA_NONE;
   c->packets_to_send = 0;
 
-  /* Try to use source address as next hop address */
-  if (ipa_zero(c->next_hop_addr))
-  {
-    if (bgp_channel_is_ipv4(c) && (ipa_is_ip4(src) || c->ext_next_hop))
-      c->next_hop_addr = src;
-
-    if (bgp_channel_is_ipv6(c) && (ipa_is_ip6(src) || c->ext_next_hop))
-      c->next_hop_addr = src;
-
-    if (bgp_channel_is_l2vpn(c))
-      c->next_hop_addr = src;
-  }
-
-  /* Use preferred addresses associated with interface / source address */
-  if (ipa_zero(c->next_hop_addr))
-  {
-    /* We know the iface for single-hop, we make lookup for multihop */
-    struct neighbor *nbr = p->neigh ?: neigh_find(&p->p, src, NULL, 0);
-    struct iface *iface = nbr ? nbr->iface : NULL;
-
-    if (bgp_channel_is_ipv4(c) && iface && iface->addr4)
-      c->next_hop_addr = iface->addr4->ip;
-
-    if (bgp_channel_is_ipv6(c) && iface && iface->addr6)
-      c->next_hop_addr = iface->addr6->ip;
-  }
-
-  /* Exit if no feasible next hop address is found */
-  if (ipa_zero(c->next_hop_addr))
-  {
-    log(L_WARN "%s: Missing next hop address", p->p.name);
-    return 0;
-  }
+  /* bgp_conn_enter_established_state would disable the channel unless next_hop_addr is nonzero */
+  ASSERT_DIE(!ipa_zero(c->next_hop_addr));
 
   /* Set link-local address for IPv6 single-hop BGP */
   if (ipa_is_ip6(c->next_hop_addr) && p->neigh)
