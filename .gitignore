@@ -15,3 +15,6 @@
 /cscope.*
 *.tar.gz
 /gitlab/docker.mk
+/tools/config.guess
+/tools/config.sub
+/tools/install-sh
