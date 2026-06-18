@@ -3257,7 +3257,7 @@ bgp_channel_start(struct channel *C)
   if (ipa_zero(c->next_hop_addr))
   {
     log(L_WARN "%s: Missing next hop address", p->p.name);
-    return -1;
+    return 0;
   }
 
   /* Set link-local address for IPv6 single-hop BGP */

@@ -1086,7 +1086,7 @@ channel_setup_in_table(struct channel *c)
 }
 
 
-static int
+static void
 channel_do_start(struct channel *c)
 {
   c->proto->active_channels++;
@@ -1094,12 +1094,9 @@ channel_do_start(struct channel *c)
   if ((c->in_keep & RIK_PREFILTER) == RIK_PREFILTER)
     channel_setup_in_table(c);
 
-  if (c->class->start)
-    if (c->class->start(c) != 0)
-      return -1;
+  CALL(c->class->start, c);
 
   channel_start_import(c);
-  return 0;
 }
 
 static void
@@ -1179,11 +1176,7 @@ channel_set_state(struct channel *c, uint state)
     ASSERT(cs == CS_DOWN || cs == CS_PAUSE);
 
     if (cs == CS_DOWN)
-      if (channel_do_start(c) != 0) {
-        // Reject the channel start and return to down state
-        c->channel_state = CS_DOWN;
-        c->last_state_change = current_time();
-      }
+      channel_do_start(c);
 
     break;
 
@@ -1191,18 +1184,12 @@ channel_set_state(struct channel *c, uint state)
     ASSERT(cs == CS_DOWN || cs == CS_START || cs == CS_PAUSE);
 
     if (cs == CS_DOWN)
-      if (channel_do_start(c) != 0) {
-        // Reject the channel start and return to down state
-        c->channel_state = CS_DOWN;
-        c->last_state_change = current_time();
-      }
+      channel_do_start(c);
 
-    if (c->channel_state != CS_DOWN) {
-      if (!c->gr_wait && c->proto->rt_notify)
-        channel_start_export(c);
+    if (!c->gr_wait && c->proto->rt_notify)
+      channel_start_export(c);
 
-      channel_do_up(c);
-    }
+    channel_do_up(c);
     break;
 
   case CS_PAUSE:
