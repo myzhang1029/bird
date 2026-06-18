@@ -416,8 +416,10 @@ proto_start_channels(struct proto *p)
 {
   struct channel *c;
   WALK_LIST(c, p->channels)
-    if (!c->disabled)
+    if (!c->disabled) {
+      log(L_WARN "proto_start_channels: calling channel_set_state(CS_UP) for %s.%s (%d)", p->name, c->name, (int)c->disabled);
       channel_set_state(c, CS_UP);
+    }
 }
 
 static void
@@ -1094,6 +1096,7 @@ channel_do_start(struct channel *c)
   if ((c->in_keep & RIK_PREFILTER) == RIK_PREFILTER)
     channel_setup_in_table(c);
 
+  log(L_WARN "Calling channel.start hook for %s.%s", c->proto->name, c->name);
   CALL(c->class->start, c);
 
   channel_start_import(c);
@@ -1175,16 +1178,20 @@ channel_set_state(struct channel *c, uint state)
   case CS_START:
     ASSERT(cs == CS_DOWN || cs == CS_PAUSE);
 
-    if (cs == CS_DOWN)
+    if (cs == CS_DOWN) {
+      log(L_WARN "channel_set_state: CS_DOWN->CS_START");
       channel_do_start(c);
+    }
 
     break;
 
   case CS_UP:
     ASSERT(cs == CS_DOWN || cs == CS_START || cs == CS_PAUSE);
 
-    if (cs == CS_DOWN)
+    if (cs == CS_DOWN) {
+      log(L_WARN "channel_set_state: CS_DOWN->CS_UP");
       channel_do_start(c);
+    }
 
     if (!c->gr_wait && c->proto->rt_notify)
       channel_start_export(c);
@@ -2848,7 +2855,7 @@ proto_notify_state(struct proto *p, uint state)
 
     if (ps == PS_DOWN_XX)
       proto_do_start(p);
-    else 
+    else
       proto_do_pause(p);
     break;
 
@@ -3521,7 +3528,7 @@ proto_announce_state_later_internal(struct proto *p, ea_list *new_state)
   };
 
   p->deferred_state_announcement =
-    SKIP_BACK(struct proto_announce_state_deferred, dc, 
+    SKIP_BACK(struct proto_announce_state_deferred, dc,
 	defer_call(&pasd.dc, sizeof pasd));
 }
 
